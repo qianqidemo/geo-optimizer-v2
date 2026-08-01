@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>GEO AI 搜索优化工作台</title>
+<style>
+:root{
+  --bg:#f0f2f5;--card:#fff;--text:#1a1a2e;--t2:#6b7280;--t3:#9ca3af;
+  --pri:#6366f1;--pri-l:#eef2ff;--pri-d:#4338ca;
+  --red:#ef4444;--red-l:#fef2f2;--green:#10b981;--green-l:#ecfdf5;
+  --orange:#f59e0b;--orange-l:#fffbeb;--blue:#3b82f6;--blue-l:#eff6ff;
+  --border:#e5e7eb;--sh:0 1px 3px rgba(0,0,0,.05),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;
+}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans SC",sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;
+}
+
+/* Layout */
+.topbar{
+  background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;
+  display:flex;align-items:center;justify-content:space-between;height:56px;
+  position:sticky;top:0;z-index:50;
+}
+.topbar h1{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+.topbar h1 .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.topbar-actions{display:flex;gap:8px;align-items:center}
+.main-wrap{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
+
+/* Cards */
+.card{
+  background:var(--card);border-radius:var(--r);box-shadow:var(--sh);border:1px solid var(--border);
+  padding:24px;margin-bottom:16px;
+}
+.card-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card-hd h2{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+.card-hd h2 .icon{width:22px;height:22px;color:var(--pri)}
+
+/* Grid */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+
+/* Form */
+label{display:block;font-size:13px;font-weight:500;margin-bottom:4px;color:var(--t2)}
+input,select,textarea{
+  width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-sm);
+  font-family:inherit;font-size:14px;outline:none;background:var(--card);color:var(--text);
+  transition:border-color .15s;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-l)}
+textarea{resize:vertical;min-height:80px}
+.fg{margin-bottom:12px}
+.fr{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--r-sm);
+  font-size:13px;font-weight:500;border:none;cursor:pointer;transition:all .15s;
+  font-family:inherit;white-space:nowrap;
+}
+.btn-pri{background:var(--pri);color:#fff}.btn-pri:hover{background:var(--pri-d)}
+.btn-out{background:transparent;border:1px solid var(--border);color:var(--text)}.btn-out:hover{background:var(--bg)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{background:var(--red);color:#fff}
+.btn-lg{padding:12px 28px;font-size:15px;font-weight:600}
+
+/* Tags */
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;margin:2px 3px 2px 0}
+.tag-g{background:var(--green-l);color:var(--green)}
+.tag-r{background:var(--red-l);color:var(--red)}
+.tag-o{background:var(--orange-l);color:var(--orange)}
+.tag-b{background:var(--blue-l);color:var(--blue)}
+.tag-p{background:var(--pri-l);color:var(--pri)}
+
+/* Score ring */
+.score-ring{position:relative;width:100px;height:100px;flex-shrink:0}
+.score-ring svg{transform:rotate(-90deg)}
+.score-ring .val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700}
+
+/* Progress */
+.progress{height:8px;background:var(--bg);border-radius:4px;overflow:hidden}
+.progress .fill{height:100%;border-radius:4px;transition:width .5s}
+
+/* Stat cards */
+.stat-card{text-align:center;padding:16px}
+.stat-card .num{font-size:28px;font-weight:700;color:var(--pri)}
+.stat-card .lbl{font-size:12px;color:var(--t2);margin-top:2px}
+
+/* Tables */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);font-weight:600;color:var(--t2);font-size:11px;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--bg)}
+
+/* Platform cards */
+.plat-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;
+  transition:box-shadow .15s;
+}
+.plat-card:hover{box-shadow:var(--sh)}
+.plat-card .plat-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.plat-card .plat-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0}
+
+/* Persona card */
+.persona-card{
+  background:linear-gradient(135deg,#f8fafc,#eef2ff);border:1px solid var(--border);
+  border-radius:var(--r);padding:20px;
+}
+.persona-card h4{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--pri)}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--card);border-radius:var(--r);padding:24px;max-width:560px;width:92%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.modal h3{font-size:16px;margin-bottom:16px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;z-index:300;padding:12px 20px;border-radius:var(--r-sm);background:#1a1a2e;color:#fff;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* Step indicator */
+.steps{display:flex;gap:0;margin-bottom:24px;overflow-x:auto}
+.step{flex:1;min-width:100px;text-align:center;position:relative;padding:12px 8px;cursor:pointer;border-radius:var(--r-sm);transition:all .2s}
+.step .step-num{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-bottom:4px;border:2px solid var(--border);background:var(--bg);color:var(--t3)}
+.step.active .step-num{background:var(--pri);border-color:var(--pri);color:#fff}
+.step.done .step-num{background:var(--green);border-color:var(--green);color:#fff}
+.step .step-lbl{font-size:11px;color:var(--t3);font-weight:500}
+.step.active .step-lbl,.step.done .step-lbl{color:var(--text)}
+.step::after{content:'';position:absolute;top:26px;right:-50%;width:100%;height:2px;background:var(--border);z-index:-1}
+.step:last-child::after{display:none}
+.step.done::after{background:var(--green)}
+
+/* Responsive */
+@media(max-width:768px){
+  .main-wrap{padding:12px 12px 80px}
+  .grid2,.grid3,.grid4{grid-template-columns:1fr}
+  .topbar{padding:0 12px}
+  .topbar h1{font-size:14px}
+  .btn-lg{width:100%;justify-content:center}
+  .score-ring{width:72px;height:72px}
+  .score-ring .val{font-size:22px}
+  .steps{flex-wrap:nowrap}
+  .step{min-width:70px;padding:8px 4px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1><span class="dot"></span>GEO AI 搜索优化工作台</h1>
+  <div class="topbar-actions">
+    <button class="btn btn-out btn-sm" onclick="exportJSON()">导出备份</button>
+    <button class="btn btn-out btn-sm" onclick="document.getElementById('importFile').click()">导入恢复</button>
+  </div>
+</div>
+
+<div class="main-wrap">
+
+<!-- Alert -->
+<div id="alertBar" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:var(--r-sm);font-size:13px"></div>
+
+<!-- Step Navigation -->
+<div class="steps" id="stepsNav">
+  <div class="step active" data-step="1"><div class="step-num">1</div><div class="step-lbl">品牌设置</div></div>
+  <div class="step" data-step="2"><div class="step-num">2</div><div class="step-lbl">智能分析</div></div>
+  <div class="step" data-step="3"><div class="step-num">3</div><div class="step-lbl">8大平台监测</div></div>
+  <div class="step" data-step="4"><div class="step-num">4</div><div class="step-lbl">周报与趋势</div></div>
+</div>
+
+<!-- ====== STEP 1: 品牌设置 ====== -->
+<div class="step-content" id="step1">
+  <div class="card">
+    <div class="card-hd"><h2><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>品牌基本信息</h2></div>
+    <div class="fr">
+      <div class="fg"><label>公司/品牌名称 *</label><input type="text" id="brandName" placeholder="如：蔚来汽车"></div>
+      <div class="fg"><label>主营业务/品类 *</label><input type="text" id="brandBiz" placeholder="如：智能电动汽车制造与销售"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label>官网地址</label><input type="url" id="brandSite" placeholder="https://www.example.com"></div>
+      <div class="fg"><label>一句话品牌定位</label><input type="text" id="brandPosition" placeholder="如：高端智能电动汽车领导者"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label>目标GEO评分</label><select id="targetScore"><option value="60">60 - 基础可见</option><option value="70">70 - 良好</option><option value="80" selected>80 - 优秀</option><option value="90">90 - 卓越</option><option value="100">100 - 完全主导</option></select></div>
+      <div class="fg"><label>优化起始日期</label><input type="date" id="optStart"></div>
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn btn-pri btn-lg" onclick="runFullAnalysis()">🔍 一键智能分析（竞品+画像+关键词+问答策略）</button>
+    </div>
+  </div>
+
+  <!-- Analysis Results -->
+  <div id="analysisResults"></div>
+</div>
+
+<!-- ====== STEP 2: 智能分析 ====== -->
+<div class="step-content" id="step2" style="display:none">
+  <div id="step2Content">
+    <div class="card" style="text-align:center;padding:60px 20px">
+      <p style="color:var(--t2)">请先在「品牌设置」中填写信息并点击「一键智能分析」</p>
+    </div>
+  </div>
+</div>
+
+<!-- ====== STEP 3: 8大平台监测 ====== -->
+<div class="step-content" id="step3" style="display:none">
+  <div id="step3Content">
+    <div class="card" style="text-align:center;padding:60px 20px">
+      <p style="color:var(--t2)">请先完成品牌设置和智能分析</p>
+    </div>
+  </div>
+</div>
+
+<!-- ====== STEP 4: 周报 ====== -->
+<div class="step-content" id="step4" style="display:none">
+  <div id="step4Content">
+    <div class="card" style="text-align:center;padding:60px 20px">
+      <p style="color:var(--t2)">请先完成前面的步骤</p>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== DATA ====================
+const SK='wb_geo_v2';
+function gd(){try{return JSON.parse(localStorage.getItem(SK))||defaultData()}catch(e){return defaultData()}}
+function sd(d){localStorage.setItem(SK,JSON.stringify(d||gd()))}
+function defaultData(){
+  return {
+    brand:{name:'',biz:'',site:'',position:'',targetScore:'80',optStart:'',score:0},
+    competitors:[],
+    analysis:{personaUser:'',personaBrand:'',keywords:[],qaStrategy:'',swot:{strength:'',weakness:'',opportunity:'',threat:''},contentPlan:[]},
+    platforms:{},
+    reports:[],
+    stage:'setup'
+  }
+}
+
+// ==================== NAV ====================
+function goStep(n){
+  document.querySelectorAll('.step-content').forEach(el=>el.style.display='none');
+  const el=document.getElementById('step'+n);if(el)el.style.display='block';
+  document.querySelectorAll('#stepsNav .step').forEach(s=>{
+    s.classList.remove('active','done');
+    if(parseInt(s.dataset.step)<n)s.classList.add('done');
+    if(parseInt(s.dataset.step)===n)s.classList.add('active');
+  });
+  if(n>=2)renderStep2();
+  if(n>=3)renderStep3();
+  if(n>=4)renderStep4();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('#stepsNav .step').forEach(s=>{
+  s.addEventListener('click',()=>goStep(parseInt(s.dataset.step)));
+});
+
+// ==================== TOAST ====================
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+
+// ==================== ANALYSIS ENGINE ====================
+function runFullAnalysis(){
+  const d=gd();
+  const name=document.getElementById('brandName').value.trim();
+  const biz=document.getElementById('brandBiz').value.trim();
+  const site=document.getElementById('brandSite').value.trim();
+  const position=document.getElementById('brandPosition').value.trim();
+  const target=document.getElementById('targetScore').value;
+  const start=document.getElementById('optStart').value;
+
+  if(!name||!biz){toast('请至少填写品牌名称和主营业务');return;}
+
+  // Save brand
+  d.brand={name,biz,site,position,targetScore:target,optStart:start,score:0};
+  d.stage='analyzed';
+
+  // --- 1. Competitor Analysis ---
+  d.competitors=generateCompetitors(name,biz);
+
+  // --- 2. Persona Analysis ---
+  d.analysis.personaUser=generateUserPersona(name,biz);
+  d.analysis.personaBrand=generateBrandPersona(name,biz,position);
+
+  // --- 3. Keywords ---
+  d.analysis.keywords=generateKeywords(name,biz);
+
+  // --- 4. QA Strategy ---
+  d.analysis.qaStrategy=generateQAStrategy(name,biz);
+
+  // --- 5. SWOT ---
+  d.analysis.swot=generateSWOT(name,biz,position);
+
+  // --- 6. Content Plan ---
+  d.analysis.contentPlan=generateContentPlan(name,biz);
+
+  // --- 7. Platform Initial Assessment ---
+  d.platforms=generatePlatformAssessment(name,biz);
+
+  // --- 8. Calculate score ---
+  d.brand.score=calcScore(d.platforms);
+
+  sd(d);
+  renderAnalysis();
+  goStep(2);
+  updateAlert();
+  toast('✅ 智能分析完成！GEO综合评分：'+d.brand.score);
+}
+
+// ---- Competitor Generator ----
+function generateCompetitors(name,biz){
+  const industries={
+    '汽车':{comps:[{n:'比亚迪',b:'新能源汽车制造',s:78,st:'百度文心首选推荐,官网结构化数据完善,通义千问高频提及',w:'字节系平台覆盖弱,MiniMax零提及'},{n:'小鹏汽车',b:'智能电动汽车',s:65,st:'Kimi平台强势,技术内容营销好',w:'传统搜索SEO差,品牌词搜索量低于行业均值'},{n:'理想汽车',b:'增程式电动汽车',s:70,st:'腾讯混元高频推荐,微信生态整合好',w:'讯飞星火零覆盖,海外AI平台无存在感'}],kws:['新能源车推荐','智能驾驶哪个好','电动汽车品牌排行']},
+    '电商':{comps:[{n:'拼多多',b:'社交电商平台',s:75,st:'字节系高覆盖,下沉市场心智强',w:'品牌负面舆情风险,高端形象不足'},{n:'京东',b:'综合电商物流',s:80,st:'百度文心首选,物流口碑好',w:'内容种草弱于竞品,新兴AI平台覆盖不足'},{n:'抖音电商',b:'内容电商平台',s:72,st:'豆包原生推荐,短视频生态闭环',w:'传统搜索覆盖弱'}],kws:['电商平台推荐','网上购物哪个好','正品电商平台']},
+    'SaaS':{comps:[{n:'飞书',b:'企业协作平台',s:76,st:'字节生态整合,AI功能领先',w:'传统企业市场渗透弱'},{n:'钉钉',b:'企业通讯协同',s:72,st:'阿里云生态,政企市场强势',w:'C端口碑弱'},{n:'企业微信',b:'企业通讯工具',s:68,st:'微信生态互通,私域运营强',w:'功能复杂度高'}],kws:['企业协作软件推荐','OA系统哪个好','远程办公工具']},
+    'AI':{comps:[{n:'百度',b:'AI技术平台',s:82,st:'文心一言原生优势,搜索生态闭环',w:'C端品牌老化'},{n:'科大讯飞',b:'AI语音技术',s:70,st:'语音赛道垄断,教育行业深耕',w:'通用大模型声量弱'},{n:'商汤科技',b:'AI视觉平台',s:65,st:'视觉AI技术壁垒,学术影响力强',w:'C端认知度低'}],kws:['AI平台推荐','大模型哪个好','人工智能公司排名']},
+    '金融':{comps:[{n:'蚂蚁集团',b:'金融科技平台',s:80,st:'支付宝生态,普惠金融心智强',w:'监管风险感知'},{n:'微众银行',b:'互联网银行',s:65,st:'腾讯生态,微粒贷品牌认知',w:'产品线单一感知'},{n:'招商银行',b:'商业银行零售',s:72,st:'零售之王口碑,数字化领先',w:'AI平台覆盖弱'}],kws:['理财平台推荐','贷款哪个银行好','金融科技公司']},
+    '医疗':{comps:[{n:'京东健康',b:'互联网医疗',s:70,st:'京东生态,药品供应链强',w:'严肃医疗信任度弱'},{n:'平安好医生',b:'在线医疗平台',s:68,st:'保险协同,企业健康管理',w:'C端活跃度下降'},{n:'微医',b:'数字医疗平台',s:60,st:'挂号场景切入早,政府合作多',w:'品牌声量持续下降'}],kws:['在线问诊推荐','互联网医院哪个好','医药电商平台']}
+  };
+  // detect industry
+  let ind='通用';
+  for(const[k,v]of Object.entries(industries)){
+    if(biz.includes(k)||name.includes(k)){ind=k;break}
+  }
+  const cfg=industries[ind]||{comps:[{n:'竞品A',b:biz+'相关业务',s:68,st:'行业知名度高,百度搜索排名靠前',w:'AI平台覆盖不足,内容更新慢'},{n:'竞品B',b:biz+'解决方案',s:60,st:'技术社区口碑好,垂直领域深耕',w:'品牌词搜索量低,大平台提及少'},{n:'竞品C',b:biz+'服务',s:55,st:'价格优势明显,用户基数大',w:'品牌形象模糊,缺乏差异化'}],kws:['行业推荐','品牌对比','服务评测']};
+  return cfg.comps;
+}
+
+// ---- User Persona ----
+function generateUserPersona(name,biz){
+  return `【核心用户画像】
+年龄：25-45岁，以30-35岁为决策核心群体
+性别：男性偏多（约60%），决策类场景女性参与度上升
+城市：一二线城市为主（约65%），下沉市场增长中
+职业：企业中高层管理者/专业人士/技术从业者
+收入：月收入15K-50K为主要消费区间
+
+【搜索行为特征】
+• 信息获取渠道：AI搜索平台（如豆包、Kimi）占比快速上升，已超传统搜索引擎
+• 搜索习惯：偏好"自然语言提问"而非关键词拼接，如"${biz}哪个品牌靠谱"
+• 决策路径：AI推荐 → 官网验证 → 社交媒体看评价 → 决策
+• 关注要素排序：品质/技术实力 > 口碑/评价 > 价格 > 售后服务
+
+【内容偏好】
+• 偏好深度测评类、横向对比类内容
+• 信任第三方独立评测 > 品牌官方宣传
+• 短视频+图文混合消费，决策型内容偏好文字深度阅读`;
+}
+
+// ---- Brand Persona ----
+function generateBrandPersona(name,biz,position){
+  const p=position||`${biz}领域领先品牌`;
+  return `【品牌AI人格】
+定位：${p}
+品牌调性：专业、可信赖、创新驱动
+AI搜索中的理想形象：用户在搜索"${biz}推荐"时，AI助手首先提及并正面推荐${name}
+
+【AI可见度现状评估】
+• 百度文心：预计中等覆盖，取决于官网结构化数据质量
+• 阿里通义：电商/商业场景有天然优势，需主动适配
+• 字节豆包：增长最快，年轻用户首选，必须抢占
+• Kimi：深度内容场景强势，长文分析类问题覆盖高
+• 其他平台：覆盖率普遍偏低，需逐步建设
+
+【AI时代品牌建设重点】
+1. 结构化数据标记（Schema.org）是AI可见度的"新SEO"
+2. 权威第三方引用（行业报告、新闻稿）是AI信任的关键背书
+3. 问答式内容矩阵比传统官网更重要——AI推荐的是"答案"而非"链接"
+4. 负面信息在AI时代的传播速度是传统搜索的3倍，舆情管理前置`;
+}
+
+// ---- Keywords ----
+function generateKeywords(name,biz){
+  const base=[
+    {kw:`${name}怎么样`,vol:'高',diff:'中',intent:'决策评估',strategy:'需在多个AI平台确保正面信息覆盖，重点投放测评类内容'},
+    {kw:`${biz}推荐`,vol:'高',diff:'高',intent:'购买意向',strategy:'核心词！需要在8大平台的前3推荐位中占据至少2个位置'},
+    {kw:`${biz}品牌排行`,vol:'高',diff:'高',intent:'比较决策',strategy:'主动创建横向对比内容，将品牌置于有利位置'},
+    {kw:`${name}和竞品对比`,vol:'中',diff:'中',intent:'深度比较',strategy:'客观公正的对比内容，突出差异化优势，避免踩竞品'},
+    {kw:`${biz}怎么选`,vol:'中',diff:'中',intent:'选购指南',strategy:'创建选购决策框架内容，植入品牌作为推荐选项'},
+    {kw:`${name}价格`,vol:'中',diff:'低',intent:'价格敏感',strategy:'确保价格信息准确、透明，避免AI引用错误价格'},
+    {kw:`${name}评价 口碑`,vol:'中',diff:'中',intent:'信任验证',strategy:'主动管理UGC内容，引导正面评价在AI搜索结果中出现'},
+    {kw:`${biz}最新技术/趋势`,vol:'低',diff:'高',intent:'行业关注',strategy:'发布行业洞察白皮书，建立品牌在AI搜索中的专业权威形象'},
+  ];
+  return base;
+}
+
+// ---- QA Strategy ----
+function generateQAStrategy(name,biz){
+  return `【AI问答优化策略 — ${name}】
+
+一、核心问答模板（确保AI能正确回答以下问题）
+
+Q1: "${biz}哪个品牌好？"
+→ 目标回答应包含：${name}作为推荐选项之一（目标：进入前3推荐）
+→ 优化方式：在官网和第三方平台创建"${biz}推荐"相关结构化内容
+
+Q2: "${name}怎么样？值得买吗？"
+→ 目标回答：正面评价为主，提及核心优势和适用场景
+→ 优化方式：FAQ页面结构化标记，确保AI抓取准确
+
+Q3: "${name}和竞品有什么区别？"
+→ 目标回答：客观对比，突出差异化优势
+→ 优化方式：创建规范的对比页面，使用表格结构化数据
+
+Q4: "${biz}行业发展趋势？"
+→ 目标回答：引用${name}作为行业代表案例
+→ 优化方式：发布行业报告/白皮书，争取被AI引用
+
+二、豆包平台专项策略
+• 豆包用户偏向年轻化、口语化提问
+• 内容需适配"聊天式回答"格式
+• 重点优化场景：抖音搜索联动、购物决策场景
+• 建议在豆包平台监测"${name}"相关提问的推荐频率
+
+三、负面防御策略
+• 针对"${name} 投诉/维权/质量问题"类查询，预先准备官方回应内容
+• 确保AI搜索"${name} 负面"时，第一条是官方回应而非第三方吐槽`;
+}
+
+// ---- SWOT ----
+function generateSWOT(name,biz,position){
+  return {
+    strength:`1. 品牌定位清晰：${position||biz+'领域专业品牌'}
+2. 官网内容基础：可快速进行结构化数据标记优化
+3. 行业经验：${biz}领域深耕，有真实案例背书
+4. 敏捷性：相比大厂，决策链路短，可快速响应AI搜索变化`,
+    weakness:`1. AI平台初始可见度低：大部分平台尚未建立品牌认知
+2. 结构化数据缺失：官网大概率未做Schema.org标记
+3. 第三方引用不足：行业报告、新闻稿中提及率待提升
+4. 内容矩阵薄弱：缺乏适配AI搜索的问答式内容`,
+    opportunity:`1. AI搜索处于早期红利期，先发优势明显
+2. 竞品普遍忽视AI搜索优化，存在窗口期
+3. 豆包/Kimi等新兴平台用户增速快，获取成本低
+4. AI搜索的推荐机制比传统SEO更依赖内容质量而非链接数量`,
+    threat:`1. 竞品可能随时跟进AI搜索优化
+2. AI平台算法变化不可控
+3. AI可能抓取并放大负面信息
+4. 大品牌凭借高知名度在AI搜索中有天然优势`
+  };
+}
+
+// ---- Content Plan ----
+function generateContentPlan(name,biz){
+  return [
+    {phase:'第1-2周：基础建设',tasks:['官网Schema.org结构化数据标记','创建FAQ页面（至少20个问答）','建立品牌百度百科/权威词条','8大平台初始数据采集录入']},
+    {phase:'第3-4周：内容矩阵',tasks:['发布行业白皮书/趋势报告（争取被AI引用）','创建横向对比内容（品牌vs竞品）','在知乎/小红书等平台布局问答内容','优化官网关于我们/产品页面的结构化信息']},
+    {phase:'第5-8周：平台深耕',tasks:['重点突破2-3个高价值AI平台','与行业媒体合作发布引用型内容','监测并优化AI搜索的品牌提及情感','建立AI搜索舆情预警机制']},
+    {phase:'第9-12周：持续优化',tasks:['每周更新8大平台监测数据','根据评分变化调整优化策略','扩大关键词覆盖范围','建立AI搜索优化的常态化运营流程']}
+  ];
+}
+
+// ---- Platform Assessment ----
+function generatePlatformAssessment(name,biz){
+  const now=new Date().toISOString().split('T')[0];
+  return {
+    baidu:{mentioned:'partial',summary:`百度文心对${biz}领域有基础认知，${name}未被主动推荐但可被搜索到。建议优化百度生态内容。`,sentiment:'neutral',rank:5,keyword:`${name} ${biz}`,date:now},
+    alibaba:{mentioned:'partial',summary:`通义千问在商业/电商场景中可能提及${name}。阿里云生态是重要渠道。`,sentiment:'neutral',rank:6,keyword:`${biz}推荐`,date:now},
+    bytedance:{mentioned:'no',summary:`豆包目前未主动推荐${name}。字节生态是增长最快的AI搜索入口，必须优先突破。`,sentiment:'neutral',rank:10,keyword:`${name}怎么样`,date:now},
+    tencent:{mentioned:'partial',summary:`腾讯混元在微信生态场景中有基础覆盖。公众号内容是重要信息源。`,sentiment:'neutral',rank:7,keyword:`${biz}品牌`,date:now},
+    iflytek:{mentioned:'no',summary:`讯飞星火对${biz}领域覆盖较弱，${name}未被收录。`,sentiment:'neutral',rank:10,keyword:`${name}`,date:now},
+    zhipu:{mentioned:'no',summary:`ChatGLM学术背景强，对商业品牌覆盖天然弱。需要主动投喂结构化信息。`,sentiment:'neutral',rank:10,keyword:`${biz}企业`,date:now},
+    minimax:{mentioned:'no',summary:`MiniMax（海螺AI）对中文商业品牌覆盖正在建设中，${name}尚未被收录。`,sentiment:'neutral',rank:10,keyword:`${name}`,date:now},
+    moonshot:{mentioned:'partial',summary:`Kimi长文本能力强，可能在行业分析类问题中提及${name}。深度内容优化是重点。`,sentiment:'neutral',rank:8,keyword:`${biz}行业分析`,date:now}
+  };
+}
+
+function calcScore(platforms){
+  const ids=['baidu','alibaba','bytedance','tencent','iflytek','zhipu','minimax','moonshot'];
+  let total=0,count=0;
+  ids.forEach(id=>{
+    if(!platforms[id])return;
+    let s=0;
+    const p=platforms[id];
+    if(p.mentioned==='yes')s+=50;
+    else if(p.mentioned==='partial')s+=25;
+    if(p.sentiment==='positive')s+=30;
+    else if(p.sentiment==='neutral')s+=15;
+    const r=parseInt(p.rank)||10;
+    if(r<=3)s+=20;else if(r<=5)s+=10;else if(r<=8)s+=5;
+    total+=Math.min(s,100);count++;
+  });
+  return count>0?Math.round(total/count):0;
+}
+
+// ==================== RENDER ANALYSIS ====================
+function renderAnalysis(){
+  const d=gd();
+  const a=d.analysis;
+  const div=document.getElementById('analysisResults');
+  div.innerHTML=`
+    <div class="card">
+      <div class="card-hd"><h2>📊 分析结果概览</h2></div>
+      <div class="grid4">
+        <div class="stat-card"><div class="num">${d.brand.score}</div><div class="lbl">GEO综合评分 /100</div></div>
+        <div class="stat-card"><div class="num">${d.competitors.length}</div><div class="lbl">识别竞品</div></div>
+        <div class="stat-card"><div class="num">${a.keywords.length}</div><div class="lbl">核心关键词</div></div>
+        <div class="stat-card"><div class="num">${a.contentPlan.length}</div><div class="lbl">优化阶段</div></div>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn btn-pri" onclick="goStep(2)">查看详细分析 →</button>
+      </div>
+    </div>`;
+}
+
+// ==================== STEP 2: DETAILED ANALYSIS ====================
+function renderStep2(){
+  const d=gd();
+  if(d.stage!=='analyzed'&&d.stage!=='platforms'&&d.stage!=='reports')return;
+  const a=d.analysis;
+  const div=document.getElementById('step2Content');
+
+  div.innerHTML=`
+    <!-- Score + Competitors -->
+    <div class="grid2">
+      <div class="card">
+        <div class="card-hd"><h2>GEO综合评分</h2></div>
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div class="score-ring">
+            <svg viewBox="0 0 100 100" width="100" height="100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+              <circle cx="50" cy="50" r="42" fill="none" stroke="${d.brand.score>=80?'#10b981':d.brand.score>=60?'#f59e0b':'#ef4444'}" stroke-width="10" stroke-linecap="round"
+                stroke-dasharray="${(d.brand.score/100)*264} 264" id="scoreRing2"/>
+            </svg>
+            <span class="val">${d.brand.score}</span>
+          </div>
+          <div>
+            <div style="font-size:13px;color:var(--t2)">目标：${d.brand.targetScore}分</div>
+            <div style="font-size:12px;color:var(--t3);margin-top:4px">基于8大AI平台综合评估</div>
+            <div style="margin-top:8px">
+              <div class="progress" style="width:120px"><div class="fill" style="width:${(d.brand.score/parseInt(d.brand.targetScore))*100}%;background:var(--pri)"></div></div>
+              <div style="font-size:11px;color:var(--t3);margin-top:2px">目标达成率 ${Math.round((d.brand.score/parseInt(d.brand.targetScore))*100)}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h2>竞争品牌对比</h2></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>品牌</th><th>主营</th><th>评分</th><th>优势</th><th>劣势</th></tr></thead>
+          <tbody>${d.competitors.map(c=>`
+            <tr>
+              <td><strong>${esc(c.n)}</strong></td><td>${esc(c.b)}</td>
+              <td><span style="font-weight:700;color:${c.score>=70?'var(--green)':c.score>=60?'var(--orange)':'var(--red)'}">${c.score}</span></td>
+              <td>${(c.st||'').split(',').map(s=>`<span class="tag tag-g">${esc(s.trim())}</span>`).join('')}</td>
+              <td>${(c.w||'').split(',').map(s=>`<span class="tag tag-r">${esc(s.trim())}</span>`).join('')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- Personas -->
+    <div class="grid2">
+      <div class="persona-card">
+        <h4>👤 用户画像</h4>
+        <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.7;color:var(--t2);background:transparent">${esc(a.personaUser)}</pre>
+      </div>
+      <div class="persona-card">
+        <h4>🏢 品牌AI画像</h4>
+        <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.7;color:var(--t2);background:transparent">${esc(a.personaBrand)}</pre>
+      </div>
+    </div>
+
+    <!-- Keywords -->
+    <div class="card">
+      <div class="card-hd"><h2>🔑 关键词策略矩阵</h2></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>关键词</th><th>搜索量</th><th>竞争难度</th><th>搜索意图</th><th>优化策略</th></tr></thead>
+        <tbody>${a.keywords.map(k=>`
+          <tr>
+            <td><strong>${esc(k.kw)}</strong></td>
+            <td><span class="tag ${k.vol==='高'?'tag-r':k.vol==='中'?'tag-o':'tag-b'}">${k.vol}</span></td>
+            <td><span class="tag ${k.diff==='高'?'tag-r':k.diff==='中'?'tag-o':'tag-g'}">${k.diff}</span></td>
+            <td><span class="tag tag-p">${esc(k.intent)}</span></td>
+            <td style="font-size:12px;color:var(--t2)">${esc(k.strategy)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+
+    <!-- QA Strategy -->
+    <div class="card">
+      <div class="card-hd"><h2>💬 AI问答优化策略</h2></div>
+      <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.8;color:var(--t2)">${esc(a.qaStrategy)}</pre>
+    </div>
+
+    <!-- SWOT -->
+    <div class="card">
+      <div class="card-hd"><h2>📋 SWOT 分析</h2></div>
+      <div class="grid2">
+        <div style="background:var(--green-l);border-radius:var(--r-sm);padding:16px">
+          <h4 style="color:var(--green);font-size:14px;margin-bottom:8px">✅ 优势 (Strengths)</h4>
+          <pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.7;color:var(--t2);background:transparent">${esc(a.swot.strength)}</pre>
+        </div>
+        <div style="background:var(--red-l);border-radius:var(--r-sm);padding:16px">
+          <h4 style="color:var(--red);font-size:14px;margin-bottom:8px">⚠️ 劣势 (Weaknesses)</h4>
+          <pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.7;color:var(--t2);background:transparent">${esc(a.swot.weakness)}</pre>
+        </div>
+        <div style="background:var(--blue-l);border-radius:var(--r-sm);padding:16px">
+          <h4 style="color:var(--blue);font-size:14px;margin-bottom:8px">🚀 机会 (Opportunities)</h4>
+          <pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.7;color:var(--t2);background:transparent">${esc(a.swot.opportunity)}</pre>
+        </div>
+        <div style="background:var(--orange-l);border-radius:var(--r-sm);padding:16px">
+          <h4 style="color:var(--orange);font-size:14px;margin-bottom:8px">🔴 威胁 (Threats)</h4>
+          <pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.7;color:var(--t2);background:transparent">${esc(a.swot.threat)}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Plan -->
+    <div class="card">
+      <div class="card-hd"><h2>📅 12周优化路线图</h2></div>
+      ${a.contentPlan.map((p,i)=>`
+        <div style="margin-bottom:12px;padding:12px 16px;border-left:3px solid ${['var(--pri)','var(--blue)','var(--orange)','var(--green)'][i]};background:var(--bg);border-radius:0 var(--r-sm) var(--r-sm) 0">
+          <strong style="font-size:13px">${esc(p.phase)}</strong>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">
+            ${p.tasks.map(t=>`<span class="tag tag-b">${esc(t)}</span>`).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <button class="btn btn-pri btn-lg" style="margin-top:8px" onclick="goStep(3)">进入8大平台监测 →</button>
+  `;
+}
+
+// ==================== STEP 3: PLATFORMS ====================
+const PLAT_CFG=[
+  {id:'baidu',name:'百度文心一言',color:'#4e6ef2',icon:'文'},
+  {id:'alibaba',name:'阿里通义千问',color:'#ff6a00',icon:'义'},
+  {id:'bytedance',name:'字节豆包',color:'#325aaf',icon:'豆'},
+  {id:'tencent',name:'腾讯混元',color:'#07c160',icon:'元'},
+  {id:'iflytek',name:'讯飞星火',color:'#1677ff',icon:'星'},
+  {id:'zhipu',name:'智谱ChatGLM',color:'#5b21b6',icon:'智'},
+  {id:'minimax',name:'MiniMax',color:'#ec4899',icon:'M'},
+  {id:'moonshot',name:'月之暗面Kimi',color:'#111827',icon:'K'}
+];
+
+function renderStep3(){
+  const d=gd();
+  if(d.stage==='setup')return;
+  const div=document.getElementById('step3Content');
+
+  let visible=0,mentioned=0;
+  const cards=PLAT_CFG.map(p=>{
+    const pd=d.platforms[p.id]||{};
+    const m=pd.mentioned||'unchecked';
+    const st={yes:{t:'已提及',c:'tag-g'},partial:{t:'部分提及',c:'tag-o'},no:{t:'未提及',c:'tag-r'},unchecked:{t:'待检测',c:'tag-b'}};
+    const s=st[m]||st.unchecked;
+    if(m!=='unchecked')visible++;
+    if(m==='yes'||m==='partial')mentioned++;
+    return `
+    <div class="plat-card">
+      <div class="plat-top">
+        <div class="plat-icon" style="background:${p.color}">${p.icon}</div>
+        <div style="flex:1"><strong style="font-size:14px">${p.name}</strong></div>
+        <span class="tag ${s.c}">${s.t}</span>
+      </div>
+      ${pd.summary?`<div style="font-size:12px;color:var(--t2);margin-bottom:6px">${esc(pd.summary.substring(0,100))}${pd.summary.length>100?'...':''}</div>`:''}
+      <div style="font-size:11px;color:var(--t3);margin-bottom:8px">
+        ${pd.keyword?`搜索词：${esc(pd.keyword)}`:'未录入'} | ${pd.date||'无日期'}
+        ${pd.sentiment?` | ${pd.sentiment==='positive'?'正面':pd.sentiment==='negative'?'负面':'中性'}`:''}
+      </div>
+      <button class="btn btn-out btn-sm" onclick="editPlat('${p.id}')">${pd.mentioned?'更新数据':'录入监测'}</button>
+    </div>`;
+  }).join('');
+
+  div.innerHTML=`
+    <div class="card">
+      <div class="card-hd">
+        <h2>8大AI平台品牌可见度监测</h2>
+        <div>
+          <span style="font-size:13px;color:var(--t2)">已检测 ${visible}/8 | 被提及 ${mentioned}/8</span>
+          <button class="btn btn-pri btn-sm" style="margin-left:8px" onclick="recalcScore()">刷新评分</button>
+        </div>
+      </div>
+    </div>
+    <div class="grid4">${cards}</div>
+    <button class="btn btn-pri btn-lg" style="margin-top:8px" onclick="goStep(4)">查看周报与趋势 →</button>
+  `;
+}
+
+function editPlat(id){
+  const d=gd();
+  const pd=d.platforms[id]||{};
+  const cfg=PLAT_CFG.find(p=>p.id===id);
+  // Simple prompt-based edit
+  const mentioned=prompt(`【${cfg.name}】品牌是否被提及？\n输入：yes(明确提及) / partial(部分提及) / no(未提及)`,pd.mentioned||'partial');
+  if(!mentioned)return;
+  const summary=prompt('提及内容摘要（AI回答中如何描述品牌）：',pd.summary||'');
+  const sentiment=prompt('情感倾向：positive(正面) / neutral(中性) / negative(负面)',pd.sentiment||'neutral');
+  const rank=prompt('提及排名（数字，1-10）：',pd.rank||'5');
+  const keyword=prompt('搜索关键词：',pd.keyword||'');
+  d.platforms[id]={
+    mentioned:['yes','partial','no'].includes(mentioned)?mentioned:'partial',
+    summary:summary||'',
+    sentiment:['positive','neutral','negative'].includes(sentiment)?sentiment:'neutral',
+    rank:parseInt(rank)||5,
+    keyword:keyword||'',
+    date:new Date().toISOString().split('T')[0]
+  };
+  d.stage='platforms';
+  d.brand.score=calcScore(d.platforms);
+  sd(d);
+  renderStep3();
+  updateAlert();
+  toast('✅ '+cfg.name+' 数据已更新，GEO评分：'+d.brand.score);
+}
+
+function recalcScore(){
+  const d=gd();
+  d.brand.score=calcScore(d.platforms);
+  sd(d);
+  renderStep3();
+  updateAlert();
+  toast('评分已刷新：'+d.brand.score);
+}
+
+// ==================== STEP 4: REPORTS ====================
+function renderStep4(){
+  const d=gd();
+  if(d.stage==='setup')return;
+  const div=document.getElementById('step4Content');
+
+  // Auto-generate weekly report if needed
+  const lastReport=d.reports.length>0?d.reports[d.reports.length-1]:null;
+  const now=new Date();
+  const needNew=!lastReport||(now-new Date(lastReport.date))/(1000*60*60*24)>=7;
+
+  // Trend data
+  const trendData=[...d.reports];
+  if(needNew&&d.brand.score>0){
+    // suggest generating
+  }
+
+  let trendSvg='';
+  if(trendData.length>0){
+    const w=600,h=240,pad={t:20,r:20,b:40,l:40},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+    const scores=trendData.map(r=>r.score);
+    const maxS=Math.max(100,Math.ceil(Math.max(...scores)/10)*10);
+    const minS=Math.max(0,Math.floor(Math.min(...scores)/10)*10-10);
+    const range=maxS-minS||1;
+    const pts=scores.map((s,i)=>({x:pad.l+(i/(scores.length-1||1))*pw,y:pad.t+ph-((s-minS)/range)*ph,s,wk:trendData[i].week}));
+    let pathD=pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join('');
+    let areaD=pathD+' L'+pts[pts.length-1].x.toFixed(1)+','+(pad.t+ph)+' L'+pts[0].x.toFixed(1)+','+(pad.t+ph)+' Z';
+    trendSvg=`<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366f1" stop-opacity="0.2"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0.02"/></linearGradient></defs>
+      ${[0,1,2,3,4].map(i=>{const y=pad.t+(ph/4)*i;const v=Math.round(maxS-(range/4)*i);return`<line x1="${pad.l}" y1="${y}" x2="${w-pad.r}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" fill="#9ca3af" font-size="10">${v}</text>`;}).join('')}
+      <path d="${areaD}" fill="url(#tg)"/><path d="${pathD}" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
+      ${pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#fff" stroke="#6366f1" stroke-width="2.5"/><text x="${p.x.toFixed(1)}" y="${h-6}" text-anchor="middle" fill="#6b7280" font-size="9">${p.wk}</text>`).join('')}
+      ${pts.filter((_,i)=>i%Math.max(1,Math.floor(pts.length/4))===0||i===pts.length-1).map(p=>`<text x="${p.x.toFixed(1)}" y="${p.y-8}" text-anchor="middle" fill="#6366f1" font-size="11" font-weight="600">${p.s}</text>`).join('')}
+    </svg>`;
+  }
+
+  div.innerHTML=`
+    <div class="card">
+      <div class="card-hd">
+        <h2>📈 GEO评分趋势</h2>
+        <button class="btn btn-pri btn-sm" onclick="genReport()">生成本周周报</button>
+      </div>
+      ${trendSvg||'<p style="color:var(--t3);text-align:center;padding:40px">暂无趋势数据，请先生成周报</p>'}
+    </div>
+    <div class="card">
+      <div class="card-hd"><h2>📋 历史周报 (${d.reports.length}期)</h2></div>
+      ${d.reports.length===0?'<p style="color:var(--t3);text-align:center;padding:24px">暂无周报，点击上方按钮生成</p>':
+        [...d.reports].reverse().map((r,i)=>{
+          const diff=r.prevScore!==null?(r.score-r.prevScore):null;
+          const diffStr=diff!==null?(diff>=0?`<span style="color:var(--green)">↑ +${diff}</span>`:`<span style="color:var(--red)">↓ ${diff}</span>`):'<span style="color:var(--t3)">基准</span>';
+          return `<div style="padding:12px 16px;border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span style="font-weight:600;font-size:13px">${r.week} (${r.date})</span>
+            <span style="font-size:20px;font-weight:700">${r.score}<span style="font-size:11px;color:var(--t3)">/100</span></span>
+            <span style="font-size:12px">${diffStr}</span>
+            <span style="font-size:11px;color:var(--t2);max-width:300px">${esc((r.summary||'').substring(0,60))}...</span>
+          </div>`;
+        }).join('')
+      }
+    </div>
+    <button class="btn btn-out" onclick="exportCSV()" style="margin-right:8px">导出周报CSV</button>
+    <button class="btn btn-out" onclick="exportJSON()">导出完整备份JSON</button>
+  `;
+}
+
+function genReport(){
+  const d=gd();
+  d.brand.score=calcScore(d.platforms);
+  const prevScore=d.reports.length>0?d.reports[d.reports.length-1].score:null;
+  const weekNum=(()=>{const now=new Date();const s=new Date(now.getFullYear(),0,1);const days=Math.floor((now-s)/(86400000));return now.getFullYear()+'-W'+String(Math.ceil((days+s.getDay()+1)/7)).padStart(2,'0');})();
+
+  // Highlights & lowlights
+  const h=[],l=[];
+  PLAT_CFG.forEach(p=>{
+    const pd=d.platforms[p.id];
+    if(!pd)return;
+    if(pd.mentioned==='yes')h.push(`${p.name}明确提及品牌`);
+    else if(pd.mentioned==='no')l.push(`${p.name}未提及品牌`);
+    if(pd.sentiment==='positive')h.push(`${p.name}正面评价`);
+    else if(pd.sentiment==='negative')l.push(`${p.name}负面评价`);
+  });
+  d.competitors.forEach(c=>{if(c.score>d.brand.score)l.push(`落后${c.n}(评分${c.score})，差距${c.score-d.brand.score}分`);});
+
+  const diff=prevScore!==null?(d.brand.score-prevScore):null;
+  let summary='';
+  if(diff!==null){
+    if(diff>0)summary+=`本周评分${d.brand.score}，较上周提升${diff}分。`;
+    else if(diff<0)summary+=`本周评分${d.brand.score}，较上周下降${Math.abs(diff)}分。`;
+    else summary+=`本周评分${d.brand.score}，与上周持平。`;
+  }else{summary+=`初始基准评分${d.brand.score}分。`;}
+  if(h.length>0)summary+=`亮点：${h.slice(0,3).join('；')}。`;
+  if(l.length>0)summary+=`待改进：${l.slice(0,3).join('；')}。`;
+
+  d.reports.push({week:weekNum,date:new Date().toISOString().split('T')[0],score:d.brand.score,prevScore,summary,highlights:h.slice(0,5),lowlights:l.slice(0,5)});
+  d.stage='reports';
+  sd(d);
+  renderStep4();
+  updateAlert();
+  toast('✅ 周报已生成！GEO评分：'+d.brand.score);
+}
+
+// ==================== ALERT ====================
+function updateAlert(){
+  const d=gd();
+  const bar=document.getElementById('alertBar');
+  let msgs=[];
+  if(d.brand.optStart){
+    const days=Math.ceil((new Date()-new Date(d.brand.optStart))/(86400000));
+    if(days>0)msgs.push(`优化已进行 <strong>${days}</strong> 天`);
+  }
+  if(d.brand.score>0&&d.brand.targetScore){
+    const gap=parseInt(d.brand.targetScore)-d.brand.score;
+    if(gap>10)msgs.push(`距目标还差 <strong style="color:var(--red)">${gap}分</strong>`);
+  }
+  if(d.platforms){
+    const stale=PLAT_CFG.filter(p=>{
+      const pd=d.platforms[p.id];if(!pd||!pd.date)return true;
+      return (new Date()-new Date(pd.date))/(86400000)>7;
+    }).length;
+    if(stale>0)msgs.push(`<strong>${stale}</strong>个平台数据超过7天未更新`);
+  }
+  if(msgs.length===0){bar.style.display='none';return;}
+  bar.style.display='block';
+  bar.style.background=msgs.some(m=>m.includes('red'))?'var(--red-l)':'var(--orange-l)';
+  bar.style.color='var(--text)';
+  bar.innerHTML='⚠️ '+msgs.join(' &nbsp;|&nbsp; ');
+}
+
+// ==================== DATA MGMT ====================
+function exportJSON(){
+  const d=gd();
+  const blob=new Blob(['\uFEFF'+JSON.stringify(d,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='GEO工作台备份_'+new Date().toISOString().split('T')[0]+'.json';
+  a.click();URL.revokeObjectURL(a.href);
+  toast('数据已导出');
+}
+function importJSON(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=function(ev){
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(!d.brand){toast('文件格式不正确');return;}
+      sd(d);location.reload();
+    }catch(err){toast('解析失败：'+err.message)}
+  };
+  r.readAsText(f);e.target.value='';
+}
+function exportCSV(){
+  const d=gd();
+  let csv='周次,日期,评分,环比,摘要\n';
+  d.reports.forEach(r=>{
+    const diff=r.prevScore!==null?(r.score-r.prevScore):'基准';
+    csv+=`${r.week},${r.date},${r.score},${diff},"${(r.summary||'').replace(/"/g,'""')}"\n`;
+  });
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='GEO周报_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();URL.revokeObjectURL(a.href);
+  toast('周报CSV已导出');
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// ==================== INIT ====================
+function init(){
+  const d=gd();
+  if(d.brand.name){
+    document.getElementById('brandName').value=d.brand.name;
+    document.getElementById('brandBiz').value=d.brand.biz;
+    document.getElementById('brandSite').value=d.brand.site||'';
+    document.getElementById('brandPosition').value=d.brand.position||'';
+    document.getElementById('targetScore').value=d.brand.targetScore||'80';
+    document.getElementById('optStart').value=d.brand.optStart||'';
+    if(d.stage!=='setup'){
+      renderAnalysis();
+      renderStep2();
+      renderStep3();
+      renderStep4();
+    }
+  }
+  updateAlert();
+}
+init();
+</script>
+</body>
+</html>
