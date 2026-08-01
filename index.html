@@ -634,15 +634,17 @@ function renderStep2(){
 
 // ==================== STEP 3: PLATFORMS ====================
 const PLAT_CFG=[
-  {id:'baidu',name:'百度文心一言',color:'#4e6ef2',icon:'文'},
-  {id:'alibaba',name:'阿里通义千问',color:'#ff6a00',icon:'义'},
-  {id:'bytedance',name:'字节豆包',color:'#325aaf',icon:'豆'},
-  {id:'tencent',name:'腾讯混元',color:'#07c160',icon:'元'},
-  {id:'iflytek',name:'讯飞星火',color:'#1677ff',icon:'星'},
-  {id:'zhipu',name:'智谱ChatGLM',color:'#5b21b6',icon:'智'},
-  {id:'minimax',name:'MiniMax',color:'#ec4899',icon:'M'},
-  {id:'moonshot',name:'月之暗面Kimi',color:'#111827',icon:'K'}
+  {id:'baidu',name:'百度文心一言',color:'#4e6ef2',icon:'文',domain:'yiyan.baidu.com'},
+  {id:'alibaba',name:'阿里通义千问',color:'#ff6a00',icon:'义',domain:'tongyi.aliyun.com'},
+  {id:'bytedance',name:'字节豆包',color:'#325aaf',icon:'豆',domain:'www.doubao.com'},
+  {id:'tencent',name:'腾讯混元',color:'#07c160',icon:'元',domain:'hunyuan.tencent.com'},
+  {id:'iflytek',name:'讯飞星火',color:'#1677ff',icon:'星',domain:'xinghuo.xfyun.cn'},
+  {id:'zhipu',name:'智谱ChatGLM',color:'#5b21b6',icon:'智',domain:'chatglm.cn'},
+  {id:'minimax',name:'MiniMax',color:'#ec4899',icon:'M',domain:'hailuoai.com'},
+  {id:'moonshot',name:'月之暗面Kimi',color:'#111827',icon:'K',domain:'kimi.moonshot.cn'}
 ];
+
+let selectedPlatId=null;
 
 function renderStep3(){
   const d=gd();
@@ -657,6 +659,11 @@ function renderStep3(){
     const s=st[m]||st.unchecked;
     if(m!=='unchecked')visible++;
     if(m==='yes'||m==='partial')mentioned++;
+
+    // build history timeline
+    const history=pd.history||[];
+    const lastEntries=history.slice(-3);
+
     return `
     <div class="plat-card">
       <div class="plat-top">
@@ -664,16 +671,89 @@ function renderStep3(){
         <div style="flex:1"><strong style="font-size:14px">${p.name}</strong></div>
         <span class="tag ${s.c}">${s.t}</span>
       </div>
-      ${pd.summary?`<div style="font-size:12px;color:var(--t2);margin-bottom:6px">${esc(pd.summary.substring(0,100))}${pd.summary.length>100?'...':''}</div>`:''}
+      ${pd.summary?`<div style="font-size:12px;color:var(--t2);margin-bottom:4px;line-height:1.5">${esc(pd.summary.substring(0,120))}${pd.summary.length>120?'...':''}</div>`:''}
       <div style="font-size:11px;color:var(--t3);margin-bottom:8px">
-        ${pd.keyword?`搜索词：${esc(pd.keyword)}`:'未录入'} | ${pd.date||'无日期'}
-        ${pd.sentiment?` | ${pd.sentiment==='positive'?'正面':pd.sentiment==='negative'?'负面':'中性'}`:''}
+        ${pd.keyword?`🔍 ${esc(pd.keyword)}`:'未录入'} | ${pd.date||'无日期'}
+        ${pd.sentiment?` | ${pd.sentiment==='positive'?'🟢正面':pd.sentiment==='negative'?'🔴负面':'⚪中性'}`:''}
+        ${pd.rank?` | 排名#${pd.rank}`:''}
       </div>
-      <button class="btn btn-out btn-sm" onclick="editPlat('${p.id}')">${pd.mentioned?'更新数据':'录入监测'}</button>
+      ${lastEntries.length>0?`
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap">
+        ${lastEntries.map(h=>`<span style="background:var(--bg);padding:1px 6px;border-radius:10px">${h.date} ${h.mentioned==='yes'?'✓':h.mentioned==='partial'?'~':'✗'}</span>`).join('')}
+      </div>`:''}
+      <button class="btn btn-out btn-sm" onclick="openPlatPanel('${p.id}')">${pd.mentioned?'更新数据':'录入监测'}</button>
     </div>`;
   }).join('');
 
   div.innerHTML=`
+    <!-- 报表URL提交面板 -->
+    <div class="card" id="platPanel" style="display:none">
+      <div class="card-hd">
+        <h2 id="platPanelTitle">📋 提交监测报表</h2>
+        <button class="btn btn-out btn-sm" onclick="closePlatPanel()">✕ 关闭</button>
+      </div>
+
+      <!-- URL输入区 -->
+      <div style="margin-bottom:16px">
+        <label style="font-size:14px;font-weight:600;margin-bottom:8px">📎 粘贴AI平台搜索结果/报表链接</label>
+        <div style="display:flex;gap:8px">
+          <input type="url" id="reportUrl" placeholder="粘贴豆包/文心/通义等平台的搜索结果页URL或分享链接…" style="flex:1;font-size:14px">
+          <button class="btn btn-pri" onclick="analyzeReportUrl()" style="white-space:nowrap">🔍 智能解析</button>
+        </div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">支持：豆包分享链接、AI平台截图描述、GEO监测报告URL、手动粘贴搜索结果文本</div>
+      </div>
+
+      <!-- 手动粘贴文本区（备选） -->
+      <div style="margin-bottom:16px">
+        <label style="font-size:14px;font-weight:600;margin-bottom:8px">📝 或直接粘贴AI回答文本（推荐，解析最准确）</label>
+        <textarea id="reportText" rows="6" placeholder="把AI平台搜索"品牌名 主营业务"后的回答内容直接粘贴到这里…&#10;&#10;例如：&#10;豆包回答：蔚来汽车是…（完整回答文本）" style="font-size:13px"></textarea>
+        <button class="btn btn-pri btn-sm" style="margin-top:8px" onclick="analyzeReportText()">🔍 解析文本</button>
+      </div>
+
+      <!-- 解析结果区 -->
+      <div id="parseResult" style="display:none">
+        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px">
+          <h4 style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--pri)">🤖 AI解析结果（可手动调整）</h4>
+          <div class="fr">
+            <div class="fg">
+              <label>品牌提及状态</label>
+              <select id="parseMentioned">
+                <option value="yes">✅ 明确提及</option>
+                <option value="partial">⚠️ 部分/间接提及</option>
+                <option value="no">❌ 未提及</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label>情感倾向</label>
+              <select id="parseSentiment">
+                <option value="positive">🟢 正面</option>
+                <option value="neutral" selected>⚪ 中性</option>
+                <option value="negative">🔴 负面</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label>提及排名</label>
+              <input type="number" id="parseRank" min="1" max="20" value="5" placeholder="在回答中的排序">
+            </div>
+            <div class="fg">
+              <label>搜索关键词</label>
+              <input type="text" id="parseKeyword" placeholder="用什么关键词搜到的">
+            </div>
+          </div>
+          <div class="fg">
+            <label>AI回答摘要 / 品牌描述</label>
+            <textarea id="parseSummary" rows="3" placeholder="AI回答中关于品牌的描述摘要…"></textarea>
+          </div>
+          <div class="fg">
+            <label>补充笔记</label>
+            <textarea id="parseNote" rows="2" placeholder="补充观察、竞品提及情况等…"></textarea>
+          </div>
+          <button class="btn btn-pri btn-lg" onclick="saveParsedResult()" style="margin-top:4px">💾 保存到平台监测数据</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 概览 -->
     <div class="card">
       <div class="card-hd">
         <h2>8大AI平台品牌可见度监测</h2>
@@ -684,35 +764,198 @@ function renderStep3(){
       </div>
     </div>
     <div class="grid4">${cards}</div>
+
+    <!-- 历史记录 -->
+    ${d.platforms&&Object.keys(d.platforms).some(k=>d.platforms[k]&&d.platforms[k].history&&d.platforms[k].history.length>0)?`
+    <div class="card" style="margin-top:16px">
+      <div class="card-hd"><h2>📜 监测历史</h2></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>日期</th><th>平台</th><th>关键词</th><th>状态</th><th>情感</th><th>排名</th><th>摘要</th></tr></thead>
+        <tbody>
+        ${PLAT_CFG.flatMap(p=>{
+          const pd=d.platforms[p.id];
+          if(!pd||!pd.history)return[];
+          return pd.history.map(h=>`
+            <tr>
+              <td>${h.date}</td><td><strong>${p.name}</strong></td><td>${esc(h.keyword||'-')}</td>
+              <td><span class="tag ${h.mentioned==='yes'?'tag-g':h.mentioned==='partial'?'tag-o':'tag-r'}">${h.mentioned==='yes'?'提及':h.mentioned==='partial'?'部分':'未提及'}</span></td>
+              <td>${h.sentiment==='positive'?'🟢':h.sentiment==='negative'?'🔴':'⚪'}</td>
+              <td>#${h.rank||'-'}</td>
+              <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((h.summary||'').substring(0,50))}</td>
+            </tr>`);
+        }).slice(-20).reverse().join('')}
+        </tbody>
+      </table></div>
+    </div>`:''}
+
     <button class="btn btn-pri btn-lg" style="margin-top:8px" onclick="goStep(4)">查看周报与趋势 →</button>
   `;
 }
 
-function editPlat(id){
+// ---- Panel open/close ----
+function openPlatPanel(id){
+  selectedPlatId=id;
+  const cfg=PLAT_CFG.find(p=>p.id===id);
+  document.getElementById('platPanel').style.display='block';
+  document.getElementById('platPanelTitle').textContent='📋 提交监测报表 — '+cfg.name+' ('+cfg.domain+')';
+  document.getElementById('reportUrl').value='';
+  document.getElementById('reportText').value='';
+  document.getElementById('parseResult').style.display='none';
+  document.getElementById('platPanel').scrollIntoView({behavior:'smooth'});
+
+  // pre-fill keyword
   const d=gd();
   const pd=d.platforms[id]||{};
-  const cfg=PLAT_CFG.find(p=>p.id===id);
-  // Simple prompt-based edit
-  const mentioned=prompt(`【${cfg.name}】品牌是否被提及？\n输入：yes(明确提及) / partial(部分提及) / no(未提及)`,pd.mentioned||'partial');
-  if(!mentioned)return;
-  const summary=prompt('提及内容摘要（AI回答中如何描述品牌）：',pd.summary||'');
-  const sentiment=prompt('情感倾向：positive(正面) / neutral(中性) / negative(负面)',pd.sentiment||'neutral');
-  const rank=prompt('提及排名（数字，1-10）：',pd.rank||'5');
-  const keyword=prompt('搜索关键词：',pd.keyword||'');
-  d.platforms[id]={
-    mentioned:['yes','partial','no'].includes(mentioned)?mentioned:'partial',
-    summary:summary||'',
-    sentiment:['positive','neutral','negative'].includes(sentiment)?sentiment:'neutral',
-    rank:parseInt(rank)||5,
-    keyword:keyword||'',
+  document.getElementById('parseKeyword').value=pd.keyword||(d.brand.name+' '+d.brand.biz);
+}
+
+function closePlatPanel(){
+  document.getElementById('platPanel').style.display='none';
+  selectedPlatId=null;
+}
+
+// ---- Smart Parser ----
+function analyzeReportUrl(){
+  const url=document.getElementById('reportUrl').value.trim();
+  if(!url){toast('请粘贴报表URL');return;}
+
+  const d=gd();
+  const brand=d.brand.name;
+  const biz=d.brand.biz;
+
+  // Try to detect which platform from URL
+  let detectedPlat='';
+  for(const p of PLAT_CFG){
+    if(url.includes(p.domain)||url.includes(p.id)){detectedPlat=p.name;break}
+  }
+
+  // Simulate analysis (in real scenario this would fetch the page)
+  // We use NLP-like heuristics on the URL and context
+  toast('🔍 正在分析URL…（注：浏览器安全策略限制无法直接抓取，请用下方文本粘贴获得最佳效果）');
+
+  // Show parse result panel with pre-filled guesses
+  document.getElementById('parseResult').style.display='block';
+  document.getElementById('parseMentioned').value='partial';
+  document.getElementById('parseSentiment').value='neutral';
+  document.getElementById('parseRank').value='5';
+  document.getElementById('parseKeyword').value=brand+' '+biz;
+  document.getElementById('parseSummary').value=
+    (detectedPlat?`来源：${detectedPlat} | `:'')+
+    `URL已提交，建议在下方补充AI回答的具体文本内容以获得更准确的解析。`+
+    `\n品牌：${brand}\n业务：${biz}`;
+  document.getElementById('parseNote').value='通过URL提交，需人工确认具体内容';
+
+  document.getElementById('parseResult').scrollIntoView({behavior:'smooth'});
+}
+
+function analyzeReportText(){
+  const text=document.getElementById('reportText').value.trim();
+  if(!text){toast('请粘贴AI回答文本');return;}
+
+  const d=gd();
+  const brand=d.brand.name;
+  const biz=d.brand.biz;
+
+  // ---- NLP Heuristic Analysis ----
+  let mentioned='no';
+  let sentiment='neutral';
+  let rank=10;
+  let summary='';
+
+  const lowerText=text.toLowerCase();
+  const brandLower=brand.toLowerCase();
+  const bizLower=biz.toLowerCase();
+
+  // Check if brand mentioned
+  const brandMentions=(text.match(new RegExp(brand.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'))||[]).length;
+  const bizMentions=(text.match(new RegExp(biz.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'))||[]).length;
+
+  if(brandMentions>=2)mentioned='yes';
+  else if(brandMentions>=1||bizMentions>=1)mentioned='partial';
+  else mentioned='no';
+
+  // Estimate rank based on first mention position
+  const firstMention=text.indexOf(brand);
+  if(firstMention>0){
+    const beforeText=text.substring(0,firstMention);
+    const linesBefore=beforeText.split('\n').length;
+    rank=Math.max(1,Math.min(10,Math.ceil(linesBefore/3)));
+  }
+
+  // Sentiment analysis
+  const positiveWords=['领先','优秀','推荐','好','强','优势','第一','最佳','卓越','创新','可靠','专业','好评','信赖'];
+  const negativeWords=['差','弱','投诉','问题','缺陷','落后','贵','不足','风险','负面','质疑','争议'];
+  let posScore=0,negScore=0;
+  positiveWords.forEach(w=>{const re=new RegExp(w,'g');posScore+=(lowerText.match(re)||[]).length});
+  negativeWords.forEach(w=>{const re=new RegExp(w,'g');negScore+=(lowerText.match(re)||[]).length});
+  if(posScore>negScore+2)sentiment='positive';
+  else if(negScore>posScore+2)sentiment='negative';
+  else sentiment='neutral';
+
+  // Generate summary
+  const idx=text.indexOf(brand);
+  if(idx>=0){
+    const start=Math.max(0,idx-30);
+    const end=Math.min(text.length,idx+brand.length+150);
+    summary=text.substring(start,end).replace(/\n/g,' ').trim();
+    if(start>0)summary='…'+summary;
+    if(end<text.length)summary+='…';
+  }else{
+    summary=`未在文本中找到"${brand}"的明确提及，请确认粘贴的内容包含品牌相关信息。`;
+  }
+
+  // Fill parse form
+  document.getElementById('parseResult').style.display='block';
+  document.getElementById('parseMentioned').value=mentioned;
+  document.getElementById('parseSentiment').value=sentiment;
+  document.getElementById('parseRank').value=rank;
+  document.getElementById('parseKeyword').value=brand+' '+biz;
+  document.getElementById('parseSummary').value=summary;
+  document.getElementById('parseNote').value=`自动解析：品牌提及${brandMentions}次，正向词${posScore}个，负向词${negScore}个`;
+
+  document.getElementById('parseResult').scrollIntoView({behavior:'smooth'});
+  toast('✅ 文本解析完成！请确认结果后保存');
+}
+
+function saveParsedResult(){
+  if(!selectedPlatId){toast('请先选择一个平台');return;}
+  const d=gd();
+
+  const newData={
+    mentioned:document.getElementById('parseMentioned').value,
+    sentiment:document.getElementById('parseSentiment').value,
+    rank:parseInt(document.getElementById('parseRank').value)||5,
+    keyword:document.getElementById('parseKeyword').value.trim(),
+    summary:document.getElementById('parseSummary').value.trim(),
+    note:document.getElementById('parseNote').value.trim(),
     date:new Date().toISOString().split('T')[0]
   };
+
+  // Save current as history
+  const old=d.platforms[selectedPlatId];
+  if(old&&old.mentioned){
+    if(!d.platforms[selectedPlatId].history)d.platforms[selectedPlatId].history=[];
+    d.platforms[selectedPlatId].history.push({
+      date:old.date,mentioned:old.mentioned,sentiment:old.sentiment,
+      rank:old.rank,keyword:old.keyword,summary:old.summary
+    });
+  }
+
+  d.platforms[selectedPlatId]={
+    ...d.platforms[selectedPlatId],
+    ...newData,
+    history:d.platforms[selectedPlatId]?d.platforms[selectedPlatId].history||[]:[]
+  };
+
   d.stage='platforms';
   d.brand.score=calcScore(d.platforms);
   sd(d);
   renderStep3();
   updateAlert();
-  toast('✅ '+cfg.name+' 数据已更新，GEO评分：'+d.brand.score);
+  closePlatPanel();
+  const cfg=PLAT_CFG.find(p=>p.id===selectedPlatId);
+  toast('✅ '+cfg.name+' 监测数据已保存！GEO评分：'+d.brand.score);
+  selectedPlatId=null;
 }
 
 function recalcScore(){
